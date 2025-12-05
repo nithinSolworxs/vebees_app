@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:my_app/auth/auth_gate.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized(); // REQUIRED before async init
@@ -22,6 +23,8 @@ void main() async {
     anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9tbWJkcHBtcGl3dnVmYXVqeHhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0MDM4MzIsImV4cCI6MjA3Nzk3OTgzMn0.EYS21ms5dr0T9j886-9dXfGqAonJfXdO6Bjvj0Gdhh0",
     url: "https://ommbdppmpiwvufaujxxo.supabase.co",
   );
+
+  await NotificationService.init(); 
 
   runApp(const MyApp());
 }

@@ -5,6 +5,7 @@ import 'package:my_app/pages/startup_page.dart';
 import 'package:my_app/pages/program_admin_page.dart';
 import 'package:my_app/pages/user_program_page.dart';
 import 'package:my_app/pages/enroll_user_page.dart';
+import 'package:my_app/pages/admin_dash_page.dart'; // <--- ADD THIS
 
 class HomePage extends StatefulWidget {
   final String userRole;
@@ -29,12 +30,18 @@ class _HomePageState extends State<HomePage> {
 
   void setupNavigationForRole(String role) {
     final roleConfig = <String, dynamic>{
+      // ------------------ ADMIN ROLE ------------------
       "Admin": {
         "pages": [
-          const ProgramAdminPage(),
-          const ProfilePage(),
+          const AdminDashPage(),       // Dashboard
+          const ProgramAdminPage(),    // Programs
+          const ProfilePage(),         // Profile
         ],
         "nav": const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard_customize_outlined),
+            label: "Dashboard",
+          ),
           BottomNavigationBarItem(
             icon: Icon(Icons.admin_panel_settings_outlined),
             label: "Programs",
@@ -46,14 +53,14 @@ class _HomePageState extends State<HomePage> {
         ],
       },
 
-      // ---------- UPDATED USER ROLE ORDER ----------
+      // ------------------ USER ROLE ------------------
       "User": {
         "pages": [
-          const UserProgramPage(),
-          const EnrollUserPage(),  // 1 Programs
-          const StartupPage(),      // 2 Startup
-          const TicketPage(),       // 3 Tickets
-          const ProfilePage(),      // 4 Profile
+          const UserProgramPage(),  // Program List
+          const EnrollUserPage(),  // Cohort
+          const StartupPage(),     // Startup
+          const TicketPage(),      // Tickets
+          const ProfilePage(),     // Profile
         ],
         "nav": const [
           BottomNavigationBarItem(
@@ -61,7 +68,7 @@ class _HomePageState extends State<HomePage> {
             label: "Programs",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.playlist_add_check), // <-- NEW ICON (Enroll)
+            icon: Icon(Icons.playlist_add_check),
             label: "Cohort",
           ),
           BottomNavigationBarItem(
@@ -78,19 +85,13 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       },
-      // ------------------------------------------------
 
+      // ------------------ DEFAULT ROLE ------------------
       "default": {
         "pages": [
-          const UserProgramPage(),
-          const ProfilePage(),
+          const ProfilePage(),     // <-- ONLY ONE PAGE
         ],
         "nav": const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.school_outlined),
-            label: "Programs",
-          ),
-          
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
             label: "Profile",
@@ -119,7 +120,7 @@ class _HomePageState extends State<HomePage> {
         onTap: _onItemTapped,
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.orange,
-        unselectedItemColor: Colors.grey,
+        unselectedItemColor: Colors.black,
         showUnselectedLabels: true,
         items: _navItems,
       ),

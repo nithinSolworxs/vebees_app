@@ -3,6 +3,7 @@ import 'package:hive/hive.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'startup_form_page.dart';
+import 'startup_detail_page.dart';
 
 class StartupPage extends StatefulWidget {
   const StartupPage({super.key});
@@ -23,11 +24,10 @@ class _StartupPageState extends State<StartupPage> {
   }
 
   Future<void> initHiveAndLoad() async {
-  startupBox = Hive.box('startupBox');   // Already opened in main.dart
-  await fetchStartupsFromSupabase();
-  setState(() => loading = false);
-}
-
+    startupBox = Hive.box('startupBox'); // Already opened
+    await fetchStartupsFromSupabase();
+    setState(() => loading = false);
+  }
 
   Future<void> fetchStartupsFromSupabase() async {
     final user = supabase.auth.currentUser;
@@ -46,44 +46,35 @@ class _StartupPageState extends State<StartupPage> {
     }
   }
 
-  // ---------------- UI -------------------
-
   @override
   Widget build(BuildContext context) {
     if (loading) {
-  return const Scaffold(
-    body: Center(child: CircularProgressIndicator()),
-  );
-                 }
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final startupList = startupBox.get('list', defaultValue: []);
-    
 
     return Scaffold(
       appBar: AppBar(
-  backgroundColor: Colors.white,
-  elevation: 0,
-  iconTheme: const IconThemeData(color: Colors.black),
-
-  title: Row(
-    children: [
-      // LOGO AT TOP LEFT
-      Image.asset(
-        "assets/logo.jpg",
-        height: 32,  // adjust size as needed
-      ),
-      const SizedBox(width: 10),
-
-      const Text(
-        "My Startups",
-        style: TextStyle(
-          color: Colors.black,
-          fontWeight: FontWeight.bold,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: Row(
+          children: [
+            Image.asset("assets/logo.jpg", height: 32),
+            const SizedBox(width: 10),
+            const Text(
+              "My Startups",
+              style: TextStyle(
+                color: Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
       ),
-    ],
-  ),
-),
-
 
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
@@ -98,37 +89,27 @@ class _StartupPageState extends State<StartupPage> {
         icon: const Icon(Icons.add),
       ),
 
-      body: loading
-          ? const Center(child: CircularProgressIndicator())
-          : startupList.isEmpty
-              ? const Center(child: Text("No startups added yet"))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: startupList.length,
-                  itemBuilder: (context, index) {
-                    final item = startupList[index];
+      body: startupList.isEmpty
+          ? const Center(child: Text("No startups added yet"))
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: startupList.length,
+              itemBuilder: (context, index) {
+                final item = startupList[index];
 
-                    final sector = item['sector'] ?? "";
-                    final problem = item['problem'] ?? "";
-                    final solution = item['solution'] ?? "";
-
-                    return _buildStartupCard(
-                      sector: sector,
-                      problem: problem,
-                      solution: solution,
-                      colorIndex: index,
-                    );
-                  },
-                ),
+                return _buildStartupCard(
+                  item: item,
+                  colorIndex: index,
+                );
+              },
+            ),
     );
   }
 
-  // ---------- CARD UI (colorful deck view) -------------
+  // ------------ STARTUP CARD WITH EDIT BUTTON + TAP ------------
 
   Widget _buildStartupCard({
-    required String sector,
-    required String problem,
-    required String solution,
+    required Map item,
     required int colorIndex,
   }) {
     final List<Color> gradientColors = [
@@ -142,58 +123,108 @@ class _StartupPageState extends State<StartupPage> {
 
     final color = gradientColors[colorIndex % gradientColors.length];
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          colors: [color.withOpacity(0.9), color.withOpacity(0.6)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    final sector = item['sector'] ?? "";
+    final problem = item['problem'] ?? "";
+    final solution = item['solution'] ?? "";
+
+    return GestureDetector(
+      onTap: () {
+        // 👉 GO TO DETAILS PAGE ON ROW CLICK
+       Navigator.push(
+  context,
+  MaterialPageRoute(
+    builder: (_) => StartupDetailPage(
+      startup: Map<String, dynamic>.from(item),
+    ),
+  ),
+);
+
+      },
+
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [
+              color.withOpacity(0.9),
+              color.withOpacity(0.6),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.4),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            )
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: color.withOpacity(0.4),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
 
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            sector,
-            style: const TextStyle(
-              fontSize: 20,
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
+        child: Stack(
+          children: [
+            // Content
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  sector,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                Text(
+                  problem,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.white.withOpacity(0.9),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                Text(
+                  solution,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.85),
+                  ),
+                ),
+              ],
             ),
-          ),
 
-          const SizedBox(height: 10),
+            // ---------- EDIT BUTTON AT BOTTOM RIGHT ----------
+            Positioned(
+              bottom: 0,
+              right: 0,
+              child: IconButton(
+                icon: const Icon(Icons.edit, color: Colors.white),
+                onPressed: () async {
+                  // Stop card tap from triggering
+                  FocusScope.of(context).requestFocus(FocusNode());
 
-          Text(
-            problem,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.white.withOpacity(0.9),
-              fontWeight: FontWeight.w500,
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => StartupFormPage(
+                        editData: item, // pass full row data
+                      ),
+                    ),
+                  );
+
+                  await fetchStartupsFromSupabase();
+                  setState(() {});
+                },
+              ),
             ),
-          ),
-
-          const SizedBox(height: 6),
-
-          Text(
-            solution,
-            style: TextStyle(
-              fontSize: 13,
-              color: Colors.white.withOpacity(0.85),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

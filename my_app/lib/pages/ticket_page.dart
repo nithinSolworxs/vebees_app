@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive/hive.dart';
-import 'ticket_form_page.dart'; // <-- NEW IMPORT
+import 'ticket_form_page.dart';
 import 'package:intl/intl.dart';
 
 class TicketPage extends StatefulWidget {
@@ -16,18 +16,17 @@ class _TicketPageState extends State<TicketPage> {
   late Box ticketsBox;
   bool loading = true;
 
- @override
-void initState() {
-  super.initState();
-  ticketsBox = Hive.box('ticketsBox');
-  loadData();
-}
+  @override
+  void initState() {
+    super.initState();
+    ticketsBox = Hive.box('ticketsBox');
+    loadData();
+  }
 
-Future<void> loadData() async {
-  await fetchTicketsFromSupabase();
-  setState(() => loading = false);
-}
-
+  Future<void> loadData() async {
+    await fetchTicketsFromSupabase();
+    setState(() => loading = false);
+  }
 
   Future<void> fetchTicketsFromSupabase() async {
     final user = supabase.auth.currentUser;
@@ -42,7 +41,7 @@ Future<void> loadData() async {
 
       await ticketsBox.put('list', response);
     } catch (e) {
-      debugPrint('Supabase fetch failed. Using Hive cache.');
+      debugPrint("Supabase fetch failed → using cache");
     }
   }
 
@@ -52,38 +51,24 @@ Future<void> loadData() async {
 
     return Scaffold(
       appBar: AppBar(
-  backgroundColor: Colors.white,
-  elevation: 0,
-  iconTheme: const IconThemeData(color: Colors.black),
-
-  title: Row(
-    children: [
-      Image.asset(
-        'assets/logo.jpg',
-        height: 28,
-      ),
-      const SizedBox(width: 10),
-      const Text(
-        "My Tickets",
-          style: TextStyle(
-          color: Colors.black,
-          fontWeight: FontWeight.bold,
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black),
+        title: Row(
+          children: [
+            Image.asset("assets/logo.jpg", height: 28),
+            const SizedBox(width: 10),
+            const Text("My Tickets",
+                style: TextStyle(
+                    color: Colors.black, fontWeight: FontWeight.bold)),
+          ],
         ),
       ),
-    ],
-  ),
-),
-
-
 
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const TicketFormPage()),
-          );
-
-          // Refresh after coming back
+              context, MaterialPageRoute(builder: (_) => const TicketFormPage()));
           fetchTicketsFromSupabase();
           setState(() {});
         },
@@ -95,10 +80,8 @@ Future<void> loadData() async {
           ? const Center(child: CircularProgressIndicator())
           : ticketList.isEmpty
               ? const Center(
-                  child: Text(
-                    "No tickets raised yet",
-                    style: TextStyle(fontSize: 16),
-                  ),
+                  child: Text("No tickets raised yet",
+                      style: TextStyle(fontSize: 16)),
                 )
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -106,57 +89,97 @@ Future<void> loadData() async {
                   itemBuilder: (context, index) {
                     final item = ticketList[index];
 
-                    final query = item['query'] ?? '';
-                    final status = item['status'] ?? 'New';
-                    final dateRaw = item['created_at'] ?? '';
+                    final query = item['query'] ?? "";
+                    final status = item['status'] ?? "New";
+                    final response = item['response'] ?? ""; // NEW
+                    final dateRaw = item['created_at'] ?? "";
+
                     final formattedDate = dateRaw.isNotEmpty
                         ? DateFormat('dd MMM yyyy, hh:mm a')
                             .format(DateTime.parse(dateRaw).toLocal())
-                        : '';
+                        : "";
 
-                    return Card(
-                      elevation: 1,
+                    return Container(
                       margin: const EdgeInsets.only(bottom: 16),
-                      shape: RoundedRectangleBorder(
+                      decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 12),
-                        title: Text(
-                          query,
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.orange.shade200,
+                            Colors.orange.shade50,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                        subtitle: Column(
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.orange.withOpacity(0.2),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 16),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const SizedBox(height: 4),
+                            // Query
+                            Text(
+                              query,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // Status
                             Text(
                               "Status: $status",
                               style: TextStyle(
                                 color: status == "New"
-                                    ? Colors.orange
-                                    : Colors.green,
-                                fontWeight: FontWeight.w500,
+                                    ? Colors.orange.shade900
+                                    : Colors.green.shade700,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 10),
+
+                            // NEW — Response box
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.7),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                response.isNotEmpty
+                                    ? response
+                                    : "No response yet",
+                                style: TextStyle(
+                                  color: Colors.grey.shade800,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            // Date
                             Text(
                               formattedDate,
                               style: TextStyle(
-                                color: Colors.grey.shade600,
+                                color: Colors.grey.shade700,
                                 fontSize: 13,
                               ),
-                            )
+                            ),
                           ],
                         ),
                       ),
                     );
-                  },
-                ),
+                  }),
     );
   }
 }

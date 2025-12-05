@@ -3,7 +3,9 @@ import 'package:hive/hive.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class StartupFormPage extends StatefulWidget {
-  const StartupFormPage({super.key});
+  final Map? editData;   // <-- ADD THIS
+
+  const StartupFormPage({super.key, this.editData});
 
   @override
   State<StartupFormPage> createState() => _StartupFormPageState();
@@ -32,18 +34,38 @@ class _StartupFormPageState extends State<StartupFormPage> {
   bool loading = false;
   late Box startupBox;
 
+  bool get isEditing => widget.editData != null;
+
   @override
   void initState() {
     super.initState();
-    initHiveBox();
+    initHiveAndLoadData();
   }
 
-  Future<void> initHiveBox() async {
+  Future<void> initHiveAndLoadData() async {
     startupBox = await Hive.openBox('startupBox');
+
+    // ---------- PREFILL FORM IN EDIT MODE ----------
+    if (isEditing) {
+      final d = widget.editData!;
+      nameCtrl.text = d['legalName'] ?? "";
+      sectorCtrl.text = d['sector'] ?? "";
+      problemCtrl.text = d['problem'] ?? "";
+      solutionCtrl.text = d['solution'] ?? "";
+      uspCtrl.text = d['usp'] ?? "";
+      stageCtrl.text = d['stage'] ?? "";
+      addressCtrl.text = d['address'] ?? "";
+      websiteCtrl.text = d['websiteLink'] ?? "";
+      founderNameCtrl.text = d['founderName'] ?? "";
+      founderEmailCtrl.text = d['founderEmail'] ?? "";
+      founderPhoneCtrl.text = d['founderPhone'] ?? "";
+      founderLinkedInCtrl.text = d['founderLinkedin'] ?? "";
+      founderRoleCtrl.text = d['founderRole'] ?? "";
+    }
   }
 
   // -------------------------------------------------------------------
-  // SAVE STARTUP TO SUPABASE & UPDATE HIVE
+  // INSERT OR UPDATE
   // -------------------------------------------------------------------
 
   Future<void> saveStartup() async {
@@ -54,31 +76,53 @@ class _StartupFormPageState extends State<StartupFormPage> {
 
     setState(() => loading = true);
 
+    final payload = {
+      "startupUuid": user.id,
+      "legalName": nameCtrl.text.trim(),
+      "sector": sectorCtrl.text.trim(),
+      "problem": problemCtrl.text.trim(),
+      "solution": solutionCtrl.text.trim(),
+      "usp": uspCtrl.text.trim(),
+      "stage": stageCtrl.text.trim(),
+      "address": addressCtrl.text.trim(),
+      "websiteLink": websiteCtrl.text.trim(),
+      "founderName": founderNameCtrl.text.trim(),
+      "founderEmail": founderEmailCtrl.text.trim(),
+      "founderPhone": founderPhoneCtrl.text.trim(),
+      "founderLinkedIn": founderLinkedInCtrl.text.trim(),
+      "founderRole": founderRoleCtrl.text.trim(),
+    };
+
     try {
-      final payload = {
-        "startupUuid": user.id,
-        "legalName": nameCtrl.text.trim(),
-        "sector": sectorCtrl.text.trim(),
-        "problem": problemCtrl.text.trim(),
-        "solution": solutionCtrl.text.trim(),
-        "usp": uspCtrl.text.trim(),
-        "stage": stageCtrl.text.trim(),
-        "address": addressCtrl.text.trim(),
-        "websiteLink": websiteCtrl.text.trim(),
-        "founderName": founderNameCtrl.text.trim(),
-        "founderEmail": founderEmailCtrl.text.trim(),
-        "founderPhone": founderPhoneCtrl.text.trim(),
-        "founderLinkedIn": founderLinkedInCtrl.text.trim(),
-        "founderRole": founderRoleCtrl.text.trim(),
-      };
+      if (isEditing) {
+        // =============================
+        // UPDATE STARTUP
+        // =============================
+        final id = widget.editData!['startupld'];
 
-      // Insert into Supabase
-      final response = await supabase.from('startup').insert(payload).select();
+        final response = await supabase
+            .from('startup')
+            .update(payload)
+            .eq('startupld', id)
+            .select();
 
-      // Update Hive offline cache
-      final list = startupBox.get('list', defaultValue: []);
-      list.insert(0, response.first); // add to top
-      await startupBox.put('list', list);
+        // ---- update Hive cache ----
+        final list = startupBox.get('list', defaultValue: []);
+        final index = list.indexWhere((e) => e['startupld'] == id);
+        if (index != -1) {
+          list[index] = response.first;
+          await startupBox.put('list', list);
+        }
+      } else {
+        // =============================
+        // INSERT NEW STARTUP
+        // =============================
+        final response = await supabase.from('startup').insert(payload).select();
+
+        final list = startupBox.get('list', defaultValue: []);
+        list.insert(0, response.first);
+        await startupBox.put('list', list);
+      }
 
       if (mounted) Navigator.pop(context);
 
@@ -100,7 +144,7 @@ class _StartupFormPageState extends State<StartupFormPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Add Startup"),
+        title: Text(isEditing ? "Edit Startup" : "Add Startup"),
         centerTitle: true,
       ),
 
@@ -112,7 +156,6 @@ class _StartupFormPageState extends State<StartupFormPage> {
                 key: _formKey,
                 child: Column(
                   children: [
-
                     _headerCard(),
 
                     const SizedBox(height: 20),
@@ -122,7 +165,7 @@ class _StartupFormPageState extends State<StartupFormPage> {
                     _buildTextField("Problem", problemCtrl, maxLines: 3),
                     _buildTextField("Solution", solutionCtrl, maxLines: 3),
                     _buildTextField("Unique Selling Point (USP)", uspCtrl),
-                    _buildTextField("Stage (Idea, MVP, Revenue…)", stageCtrl),
+                    _buildTextField("Stage", stageCtrl),
                     _buildTextField("Address", addressCtrl),
                     _buildTextField("Website", websiteCtrl),
                     _buildTextField("Founder Name", founderNameCtrl),
@@ -135,17 +178,23 @@ class _StartupFormPageState extends State<StartupFormPage> {
 
                     ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 28),
+                        backgroundColor:
+                            isEditing ? Colors.blue : Colors.orange,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 14, horizontal: 28),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       onPressed: saveStartup,
-                      icon: const Icon(Icons.save, color: Colors.white),
-                      label: const Text(
-                        "Save Startup",
-                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      icon: Icon(
+                        isEditing ? Icons.check : Icons.save,
+                        color: Colors.white,
+                      ),
+                      label: Text(
+                        isEditing ? "Update Startup" : "Save Startup",
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 16),
                       ),
                     ),
 
@@ -157,8 +206,6 @@ class _StartupFormPageState extends State<StartupFormPage> {
     );
   }
 
-  // -------------------------------------------------------------------
-  // REUSABLE INPUT FIELDS
   // -------------------------------------------------------------------
 
   Widget _buildTextField(String label, TextEditingController ctrl,
@@ -180,7 +227,7 @@ class _StartupFormPageState extends State<StartupFormPage> {
   }
 
   // -------------------------------------------------------------------
-  // COLORFUL HEADER CARD LIKE YOUR DESIGN
+  // HEADER CARD
   // -------------------------------------------------------------------
 
   Widget _headerCard() {
@@ -198,21 +245,25 @@ class _StartupFormPageState extends State<StartupFormPage> {
           end: Alignment.bottomRight,
         ),
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Create Your Startup Profile",
-            style: TextStyle(
+            isEditing
+                ? "Edit Your Startup Profile"
+                : "Create Your Startup Profile",
+            style: const TextStyle(
               fontSize: 22,
               color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
-            "Fill the details below to add your startup.",
-            style: TextStyle(
+            isEditing
+                ? "Update the details below."
+                : "Fill the details below to add your startup.",
+            style: const TextStyle(
               fontSize: 14,
               color: Colors.white70,
             ),

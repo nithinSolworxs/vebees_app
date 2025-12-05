@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class ProgramEditPage extends StatefulWidget {
-  final Map<String, dynamic>? program; // null => Add mode
+  final Map<String, dynamic>? program;
 
   const ProgramEditPage({super.key, this.program});
 
@@ -12,7 +14,6 @@ class ProgramEditPage extends StatefulWidget {
 
 class _ProgramEditPageState extends State<ProgramEditPage> {
   final supabase = Supabase.instance.client;
-
   final _formKey = GlobalKey<FormState>();
 
   // Controllers
@@ -23,8 +24,9 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
   final _discountController = TextEditingController();
   final _partnerController = TextEditingController();
   final _eligibilityController = TextEditingController();
+  final _meetLinkController = TextEditingController();
 
-  // Dropdown values
+  // Dropdowns
   String? programType;
   String? programStatus;
   String? programMode;
@@ -34,6 +36,9 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
 
   bool isEdit = false;
 
+  File? selectedImage;
+  String? imagePathFromDB;
+
   @override
   void initState() {
     super.initState();
@@ -42,6 +47,7 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
 
     if (isEdit) {
       final p = widget.program!;
+
       programType = p['programType'];
       programStatus = p['programStatus'];
       programMode = p['programMode'];
@@ -53,6 +59,10 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
       _discountController.text = p['programDiscount']?.toString() ?? '';
       _partnerController.text = p['programPartner'] ?? '';
       _eligibilityController.text = p['programEligiblity'] ?? '';
+      _meetLinkController.text = p['programMeetLink'] ?? '';
+
+      // ⭐ NOW STORES FULL PUBLIC URL (GOOD)
+      imagePathFromDB = p['programImage'];
 
       if (p['programStartDate'] != null) {
         startDate = DateTime.parse(p['programStartDate']);
@@ -61,6 +71,36 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
         endDate = DateTime.parse(p['programEndDate']);
       }
     }
+  }
+
+  // ⭐ PICK IMAGE
+  Future pickImage() async {
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+
+    if (picked != null) {
+      setState(() {
+        selectedImage = File(picked.path);
+      });
+    }
+  }
+
+  // ⭐ UPLOAD IMAGE + STORE FULL PUBLIC URL
+  Future<String?> uploadImage(String programId) async {
+    if (selectedImage == null) return imagePathFromDB;
+
+    final filePath = "programs/$programId/cover.png";
+
+    await supabase.storage.from('programs').upload(
+      filePath,
+      selectedImage!,
+      fileOptions: const FileOptions(upsert: true),
+    );
+
+    // ⭐ FULL PUBLIC URL
+    final publicUrl =
+        supabase.storage.from('programs').getPublicUrl(filePath);
+
+    return publicUrl;
   }
 
   Future<void> saveProgram() async {
@@ -74,6 +114,37 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
     }
 
     final numDays = endDate!.difference(startDate!).inDays + 1;
+
+    int? programId = widget.program?['programId'];
+
+    // ⭐ INSERT FIRST → GET programId
+    if (!isEdit) {
+      final inserted = await supabase
+          .from("program")
+          .insert({
+            "programType": programType,
+            "programName": _nameController.text.trim(),
+            "programDescrip": _descController.text.trim(),
+            "programStatus": programStatus,
+            "programStartDate": startDate!.toIso8601String(),
+            "programEndDate": endDate!.toIso8601String(),
+            "programNumDays": numDays,
+            "programOwner": _ownerController.text.trim(),
+            "programPrice": int.tryParse(_priceController.text.trim()) ?? 0,
+            "programDiscount": int.tryParse(_discountController.text.trim()) ?? 0,
+            "programPartner": _partnerController.text.trim(),
+            "programMode": programMode,
+            "programEligiblity": _eligibilityController.text.trim(),
+            "programMeetLink": _meetLinkController.text.trim(),
+          })
+          .select()
+          .single();
+
+      programId = inserted['programId'];
+    }
+
+    // ⭐ UPLOAD IMAGE (FULL URL)
+    final uploadedUrl = await uploadImage(programId.toString());
 
     final data = {
       "programType": programType,
@@ -89,10 +160,11 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
       "programPartner": _partnerController.text.trim(),
       "programMode": programMode,
       "programEligiblity": _eligibilityController.text.trim(),
+      "programMeetLink": _meetLinkController.text.trim(),
+      "programImage": uploadedUrl, // ⭐ STORE PUBLIC URL
     };
 
     if (isEdit) {
-      // UPDATE
       await supabase
           .from("program")
           .update(data)
@@ -102,7 +174,6 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
         const SnackBar(content: Text("Program updated successfully")),
       );
     } else {
-      // INSERT
       await supabase.from("program").insert(data);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -126,7 +197,40 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
           key: _formKey,
           child: Column(
             children: [
-              // Program Type
+              // ⭐ IMAGE BOX
+              GestureDetector(
+                onTap: pickImage,
+                child: Container(
+                  height: 160,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(10),
+                    image: selectedImage != null
+                        ? DecorationImage(
+                            image: FileImage(selectedImage!),
+                            fit: BoxFit.cover,
+                          )
+                        : (imagePathFromDB != null &&
+                                imagePathFromDB!.startsWith("http"))
+                            ? DecorationImage(
+                                image: NetworkImage(imagePathFromDB!),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                  ),
+                  child: selectedImage == null && imagePathFromDB == null
+                      ? const Center(
+                          child: Text("Tap to upload image",
+                              style: TextStyle(color: Colors.grey)),
+                        )
+                      : null,
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // PROGRAM TYPE
               DropdownButtonFormField<String>(
                 value: programType,
                 decoration: const InputDecoration(labelText: "Program Type"),
@@ -157,13 +261,13 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
 
               TextFormField(
                 controller: _descController,
-                decoration: const InputDecoration(labelText: "Description"),
                 maxLines: 3,
+                decoration: const InputDecoration(labelText: "Description"),
               ),
 
               const SizedBox(height: 10),
 
-              // Program Status
+              // STATUS
               DropdownButtonFormField<String>(
                 value: programStatus,
                 decoration: const InputDecoration(labelText: "Program Status"),
@@ -176,12 +280,12 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
 
               const SizedBox(height: 20),
 
-              // Start Date
+              // DATES
               ListTile(
                 title: Text(
                   startDate == null
                       ? "Select Start Date"
-                      : "Start Date: ${startDate!.toLocal()}".split(" ")[0],
+                      : "Start Date: ${startDate!.toLocal()}".split(' ')[0],
                 ),
                 trailing: const Icon(Icons.calendar_month),
                 onTap: () async {
@@ -191,18 +295,15 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
                     firstDate: DateTime(2020),
                     lastDate: DateTime(2100),
                   );
-                  if (picked != null) {
-                    setState(() => startDate = picked);
-                  }
+                  if (picked != null) setState(() => startDate = picked);
                 },
               ),
 
-              // End Date
               ListTile(
                 title: Text(
                   endDate == null
                       ? "Select End Date"
-                      : "End Date: ${endDate!.toLocal()}".split(" ")[0],
+                      : "End Date: ${endDate!.toLocal()}".split(' ')[0],
                 ),
                 trailing: const Icon(Icons.calendar_month),
                 onTap: () async {
@@ -212,9 +313,7 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
                     firstDate: DateTime(2020),
                     lastDate: DateTime(2100),
                   );
-                  if (picked != null) {
-                    setState(() => endDate = picked);
-                  }
+                  if (picked != null) setState(() => endDate = picked);
                 },
               ),
 
@@ -245,8 +344,7 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
 
               TextFormField(
                 controller: _partnerController,
-                decoration:
-                    const InputDecoration(labelText: "Partner"),
+                decoration: const InputDecoration(labelText: "Partner"),
               ),
 
               const SizedBox(height: 10),
@@ -264,8 +362,17 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
 
               TextFormField(
                 controller: _eligibilityController,
-                decoration: const InputDecoration(labelText: "Eligibility"),
                 maxLines: 2,
+                decoration: const InputDecoration(labelText: "Eligibility"),
+              ),
+
+              const SizedBox(height: 15),
+
+              TextFormField(
+                controller: _meetLinkController,
+                decoration: const InputDecoration(
+                  labelText: "Meeting Link (Google Meet / Zoom)",
+                ),
               ),
 
               const SizedBox(height: 25),
@@ -273,10 +380,9 @@ class _ProgramEditPageState extends State<ProgramEditPage> {
               ElevatedButton(
                 onPressed: saveProgram,
                 style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
+                    minimumSize: const Size(double.infinity, 48)),
                 child: Text(isEdit ? "Update Program" : "Add Program"),
-              )
+              ),
             ],
           ),
         ),
